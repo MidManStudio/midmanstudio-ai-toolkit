@@ -1,0 +1,12 @@
+# OS
+.DS_Store
+Thumbs.db
+
+# Editors
+.vscode/
+.idea/
+*.swp
+
+# Local scratch -- if you ever test-drive a skill against a real .mdix file here
+*.mdix.enc
+*.mdix.key

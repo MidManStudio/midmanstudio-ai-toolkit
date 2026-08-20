@@ -1,0 +1,23 @@
+@CONFIG(
+  version    -> "1.0.0"
+  generated  -> "2026-08-20T11:02:04Z"
+  debug_mode -> "off"
+)
+
+@DATA(
+  template      = ".mdix/project_structure/project_structure.mdix"
+  template_hash = "3a37110e05fc"
+  last_run      = "2026-08-20T11:02:04Z"
+  new_this_run  = 3
+  overridden    = 0
+  skipped       = 0
+  deleted       = 0
+  renamed       = 0
+  moved         = 0
+  updated       = 0
+
+  created_files::
+    ".gitignore"
+    "skills/languages/.gitkeep"
+    "skills/workflow/.gitkeep"
+)
