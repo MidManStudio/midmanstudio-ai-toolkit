@@ -1,0 +1,53 @@
+// Brought to u by MidManStudio
+
+@CONFIG(
+  version    -> "1.0.0"
+  author     -> "Mid-D-Man"
+  features   -> "quickfuncs,data"
+  debug_mode -> "off"
+)
+
+@QUICKFUNCS(
+
+  ~fc<object>(_name, _ext, _content) {
+    return { name = _name, ext = _ext, content = _content }
+  }
+
+  ~gitkeep<object>() {
+    return { name = ".gitkeep", ext = "", content = "" }
+  }
+
+)
+
+@DATA(
+  project_name = "midmanstudio-ai-toolkit"
+  description  = "Curated, tool-agnostic AI skills toolkit -- DixScript is the flagship, general dev skills come second"
+  author       = "Mid-D-Man"
+
+  // skills/dixscript/ and references/dixscript/ are intentionally NOT
+  // declared here -- the replacements pass creates them (and populates
+  // them with real content) in the same step. Only the still-empty
+  // category folders get a placeholder in this pass.
+
+  // NOTE: every "skills.*" dotted key in this block must stay at the SAME
+  // depth. Mixing a 2-level key (e.g. skills.workflow) with a 3-level key
+  // sharing the same first segment (e.g. skills.languages.rust) silently
+  // drops every key at the deeper level -- confirmed directly against the
+  // real compiler, not assumed. See dixscript-scaffold's "Known Tooling
+  // Quirk" section. That's also why individual languages (rust,
+  // csharp_unity, etc.) aren't pre-created as their own empty folders here:
+  // there's no real content for any of them yet, so this only needs ONE
+  // depth-2 placeholder for the whole languages/ category, matching
+  // skills.workflow's depth exactly. Real per-language folders get created
+  // by the replacements pass the same way skills/dixscript/ is -- the day
+  // there's actual content to put in one.
+
+  root::
+    fc(".gitignore", "", "# OS\n.DS_Store\nThumbs.db\n\n# Editors\n.vscode/\n.idea/\n*.swp\n\n# Local scratch -- if you ever test-drive a skill against a real .mdix file here\n*.mdix.enc\n*.mdix.key\n")
+
+  skills.languages::
+    gitkeep()
+
+  skills.workflow::
+    gitkeep()
+)
