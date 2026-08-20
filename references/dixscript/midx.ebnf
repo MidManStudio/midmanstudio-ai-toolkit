@@ -1,0 +1,510 @@
+(* DixScript Extended BNF Grammar v1.0.0  *)
+(* MidMans Data Interchange Extension Script *)
+(* File Extension: .mdix *)
+
+(* ============================================================ *)
+(* CHANGES FROM v1.0.0                                         *)
+(*   - Long (64-bit integer) literal type added                *)
+(*   - Binary literal prefix 0b/0B added                       *)
+(*   - Underscore separators in numeric literals               *)
+(*   - "long" added to DataType                                *)
+(*   - Long (i64) added to Primitive and Value types           *)
+(* ============================================================ *)
+
+(* ============================================================ *)
+(* MAIN STRUCTURE *)
+(* ============================================================ *)
+
+DixScript        ::= ConfigSection? ImportsSection? DLMSection? EnumSection?
+                     QuickFuncsSection? DataSection? SecuritySection?
+
+(* ============================================================ *)
+(* COMMENT SYNTAX *)
+(* ============================================================ *)
+
+Comment           ::= SingleLineComment | MultiLineComment
+SingleLineComment ::= "//" CommentText LineTerminator
+MultiLineComment  ::= "/*" MultiLineCommentText "*/"
+CommentText       ::= (Character - LineTerminator)*
+MultiLineCommentText ::= (Character - "*/")*
+LineTerminator    ::= "\n" | "\r\n" | "\r"
+
+(* ============================================================ *)
+(* @CONFIG SECTION *)
+(* ============================================================ *)
+
+ConfigSection    ::= "@CONFIG(" ConfigEntry (","? ConfigEntry)* ")"
+ConfigEntry      ::= ConfigKey "->" ConfigValue
+ConfigKey        ::= "version" | "encoding" | "author" | "created" | "features"
+                    | "debug_mode" | "error_handling" | "compatibility_mode"
+                    | Identifier
+ConfigValue      ::= StringLiteral | Integer | Float | Boolean | Date | Timestamp
+                    | FeatureValue | DebugValue | ErrorHandlingValue
+                    | CompatibilityValue
+
+FeatureValue     ::= "\"basic\"" | "\"advanced\"" | SectionList
+SectionList      ::= "\"" SectionName (","? SectionName)* "\""
+SectionName      ::= "quickfuncs" | "enums" | "dlm" | "data"
+
+DebugValue       ::= "\"off\"" | "\"regular\"" | "\"verbose\""
+ErrorHandlingValue ::= "\"halt\"" | "\"continue\"" | "\"recover\""
+CompatibilityValue ::= "\"strict\"" | "\"best_effort\"" | "\"permissive\""
+
+(* ============================================================ *)
+(* @IMPORTS SECTION *)
+(* ============================================================ *)
+
+ImportsSection   ::= "@IMPORTS(" ImportDeclaration (","? ImportDeclaration)* ")"
+
+ImportDeclaration ::= Identifier ImportSource VerifyClause?
+
+ImportSource     ::= "from" StringLiteral
+                    | "from_cloud" StringLiteral
+
+VerifyClause     ::= "verify" StringLiteral
+
+(* ============================================================ *)
+(* @DLM SECTION - Data Lifecycle Modules *)
+(* ============================================================ *)
+
+DLMSection       ::= "@DLM(" DLMList? ")"
+DLMList          ::= DLMModule (","? DLMModule)*
+DLMModule        ::= ModuleType ("." ModuleSubtype)?
+
+ModuleType       ::= "DCompressor" | "DAuditor" | "DEncryptor"
+ModuleSubtype    ::= "gzip" | "bzip2" | "lzma"
+                    | "diy" | "enhanced"
+                    | "xor" | "aes128" | "aes256" | "chacha20"
+
+(* ============================================================ *)
+(* @ENUMS SECTION *)
+(* ============================================================ *)
+
+EnumSection      ::= "@ENUMS(" EnumDeclaration+ ")"
+EnumDeclaration  ::= Identifier "{" EnumFieldList "}"
+EnumFieldList    ::= EnumField (","? EnumField)*
+EnumField        ::= Identifier ("=" Integer)?
+
+(* ============================================================ *)
+(* @QUICKFUNCS SECTION *)
+(* ============================================================ *)
+
+QuickFuncsSection ::= "@QUICKFUNCS(" QuickFunc* ")"
+QuickFunc        ::= "~" Identifier TypeAnnotation? ScopeDeclaration?
+                     FunctionSignature FunctionBody
+
+TypeAnnotation   ::= "<" DataType ">"
+ScopeDeclaration ::= "=>" ScopeTarget ("," ScopeTarget)*
+ScopeTarget      ::= "global" | QualifiedIdentifier
+FunctionSignature ::= "(" ParameterList? ")"
+ParameterList    ::= Parameter ("," Parameter)*
+Parameter        ::= Identifier TypeAnnotation? ("=" DefaultValue)?
+DefaultValue     ::= Literal
+
+FunctionBody     ::= "{" Statement* ReturnStatement "}"
+
+(* ============================================================ *)
+(* @DATA SECTION - Two-Tier Ordering System (COMMAS OPTIONAL) *)
+(* ============================================================ *)
+
+DataSection      ::= "@DATA(" DataContent ")"
+
+DataContent      ::= FlatPropertiesOnly
+                    | GroupedDataOnly
+                    | FlatPropertiesThenGroupedData
+
+FlatPropertiesOnly ::= SimpleProperty (","? SimpleProperty)*
+GroupedDataOnly    ::= GroupedEntry (","? GroupedEntry)*
+FlatPropertiesThenGroupedData ::= SimpleProperty (","? SimpleProperty)* GroupedEntry (","? GroupedEntry)*
+
+GroupedEntry     ::= TableProperty | GroupArray
+
+SimpleProperty   ::= Identifier TypeAnnotation? "=" PropertyValue
+
+TableProperty    ::= TablePath ":" PropertyAssignment (","? PropertyAssignment)*
+
+GroupArray       ::= TablePath "::" ArrayItem (","? ArrayItem)*
+
+TablePath        ::= Identifier ("." Identifier)*
+PropertyAssignment ::= Identifier TypeAnnotation? "=" PropertyValue
+ArrayItem        ::= PropertyValue | ObjectLiteral
+
+PropertyValue    ::= Value
+                    | QuickFuncCall
+                    | ImportedFunctionCall
+
+QuickFuncCall    ::= Identifier "(" FunctionArgs? ")"
+
+ImportedFunctionCall ::= NamespaceName "." FunctionName "(" FunctionArgs? ")"
+
+(* ============================================================ *)
+(* @SECURITY SECTION *)
+(* ============================================================ *)
+
+SecuritySection  ::= "@SECURITY(" SecurityEntry (","? SecurityEntry)* ")"
+SecurityEntry    ::= SecurityBlockKey "->" "{" SecurityFieldList? "}"
+SecurityBlockKey ::= "encryption" | "validation" | "keystore" | "override" | "metadata"
+SecurityFieldList ::= SecurityField ("," SecurityField)*
+SecurityField    ::= Identifier "=" SecurityValue
+SecurityValue    ::= StringLiteral | Integer | Boolean | "auto" | HexLiteral
+
+(* ============================================================ *)
+(* STATEMENTS - WITH VARIABLE DECLARATION *)
+(* ============================================================ *)
+
+Statement        ::= IfStatement | SwitchStatement
+                    | VariableDeclaration | AssignmentStatement
+                    | ArithmeticAssignmentStatement
+                    | LogStatement | ExpressionStatement
+
+ExpressionStatement ::= Expression ";"?
+
+VariableDeclaration ::= DeclarationKeyword Identifier TypeAnnotation? "=" Expression ";"?
+
+DeclarationKeyword ::= "let" | "const" | "let" "mut"
+
+AssignmentStatement ::= Identifier "=" Expression ";"?
+ArithmeticAssignmentStatement ::= Identifier ArithmeticAssignOp Expression ";"?
+ArithmeticAssignOp ::= "+=" | "-=" | "*=" | "/=" | "%="
+
+IfStatement      ::= "if:" Expression "{" Statement* "}"
+                     ("elif:" Expression "{" Statement* "}")*
+                     ("else" "{" Statement* "}")?
+
+SwitchStatement  ::= "chk:" Expression "{" SwitchCase* DefaultCase? "}"
+SwitchCase       ::= "->" (QualifiedIdentifier | Literal) "{" Statement* "}"
+DefaultCase      ::= "->" "miss" "{" Statement* "}"
+
+ReturnStatement  ::= "return" Expression ";"?
+LogStatement     ::= "log:" Expression ";"?
+
+(* ============================================================ *)
+(* EXPRESSIONS *)
+(* ============================================================ *)
+
+Expression       ::= ConditionalExpression
+
+ConditionalExpression ::= LogicalOrExpression
+                         ("?" Expression ":" ConditionalExpression)?
+
+LogicalOrExpression ::= LogicalAndExpression
+                       ("||" LogicalAndExpression | "or" LogicalAndExpression)*
+
+LogicalAndExpression ::= EqualityExpression
+                        ("&&" EqualityExpression | "and" EqualityExpression)*
+
+EqualityExpression ::= RelationalExpression (("==" | "!=") RelationalExpression)*
+
+RelationalExpression ::= AdditiveExpression
+                        ((">" | "<" | ">=" | "<=") AdditiveExpression)*
+
+AdditiveExpression ::= MultiplicativeExpression
+                      (("+" | "-") MultiplicativeExpression)*
+
+MultiplicativeExpression ::= ExponentialExpression
+                            (("*" | "/" | "%") ExponentialExpression)*
+
+ExponentialExpression ::= UnaryExpression ("^" UnaryExpression)*
+
+UnaryExpression  ::= ("!" | "not" | "-" | "+") UnaryExpression
+                    | PostfixExpression
+
+PostfixExpression ::= PrimaryExpression PostfixSuffix*
+
+PostfixSuffix    ::= PropertyAccess
+                    | ArrayAccess
+                    | MethodCall
+                    | FunctionCall
+
+(* ============================================================ *)
+(* PRIMARY EXPRESSIONS *)
+(* ============================================================ *)
+
+PrimaryExpression ::= Literal
+                    | Identifier
+                    | "(" Expression ")"
+                    | ArrayLiteral
+                    | ObjectLiteral
+                    | PrefixedConstructor
+                    | StaticFunctionCall
+                    | DixFunctionCall
+                    | ImportedFunctionCall
+                    | ConfigAccess
+                    | EnumAccess
+                    | ImportedEnumAccess
+
+(* ============================================================ *)
+(* REGISTRY-BASED FUNCTION CALLS *)
+(* ============================================================ *)
+
+StaticFunctionCall ::= StaticObjectName "." MethodName "(" FunctionArgs? ")"
+StaticObjectName   ::= Identifier
+MethodName         ::= Identifier
+
+MethodCall       ::= "." Identifier "(" FunctionArgs? ")"
+
+DixFunctionCall  ::= "Dix" "." DixMethodName "(" FunctionArgs? ")"
+DixMethodName    ::= "logEvent" | "getSystemInfo" | "validateConfig"
+
+ImportedFunctionCall ::= NamespaceName "." FunctionName "(" FunctionArgs? ")"
+NamespaceName    ::= Identifier
+FunctionName     ::= Identifier
+
+(* REQUIRED: Commas in function arguments *)
+FunctionCall     ::= "(" FunctionArgs? ")"
+FunctionArgs     ::= Expression ("," Expression)*
+
+(* ============================================================ *)
+(* ACCESS EXPRESSIONS *)
+(* ============================================================ *)
+
+PropertyAccess   ::= "." Identifier
+ArrayAccess      ::= "[" Expression "]"
+ConfigAccess     ::= "config" "." Identifier
+
+EnumAccess       ::= Identifier "." Identifier
+
+ImportedEnumAccess ::= NamespaceName "." EnumName "." EnumValue
+EnumName         ::= Identifier
+EnumValue        ::= Identifier
+
+(* ============================================================ *)
+(* LITERALS AND VALUES *)
+(* ============================================================ *)
+
+Literal          ::= Primitive | ArrayLiteral | ObjectLiteral | HexColor
+                    | Date | Timestamp | PrefixedConstructor | Null
+
+Primitive        ::= Long | Integer | Float | Double | ScientificNotation
+                    | HexLiteral | BinaryLiteral | Boolean | StringLiteral
+
+(* REQUIRED: Commas in array literals *)
+ArrayLiteral     ::= "[" ArrayElements? "]"
+ArrayElements    ::= Expression ("," Expression)*
+
+(* REQUIRED: Commas in object literals *)
+ObjectLiteral    ::= "{" ObjectProperties? "}"
+ObjectProperties ::= ObjectProperty ("," ObjectProperty)*
+ObjectProperty   ::= Identifier TypeAnnotation? "=" PropertyValue
+
+PrefixedConstructor ::= BlobConstructor | TupleConstructor | RegexConstructor
+
+BlobConstructor  ::= "b:" "(" StringLiteral ")"
+
+(* REQUIRED: Commas in tuple constructors *)
+TupleConstructor ::= "t:" "(" TupleArguments? ")"
+TupleArguments   ::= Expression ("," Expression){0,5}
+
+RegexConstructor ::= "r:" "(" StringLiteral ")"
+
+QualifiedIdentifier ::= Identifier ("." Identifier)*
+
+(* ============================================================ *)
+(* STRING LITERALS *)
+(* ============================================================ *)
+
+StringLiteral    ::= DoubleQuotedString | SingleQuotedString | InterpolatedString
+
+DoubleQuotedString ::= '"' DoubleQuotedChar* '"'
+SingleQuotedString ::= "'" SingleQuotedChar* "'"
+
+InterpolatedString ::= '$"' InterpolatedContent* '"'
+InterpolatedContent ::= InterpolatedChar | InterpolationExpression
+InterpolationExpression ::= "{" Expression "}"
+
+DoubleQuotedChar ::= (Character - '"') | EscapeSequence
+SingleQuotedChar ::= (Character - "'") | EscapeSequence
+InterpolatedChar ::= (Character - ('"' | '{')) | EscapeSequence
+
+(* ============================================================ *)
+(* NUMERIC LITERALS                                            *)
+(* ============================================================ *)
+
+(*
+NUMERIC LITERALS — COMPLETE RULES
+==================================
+
+UNDERSCORE SEPARATORS
+  Any integer, hex, or binary literal may contain '_' between digits as a
+  visual separator.  Underscores are stripped before parsing.
+    1_000_000      → Integer(1000000)
+    0xFF_FF        → Integer(65535)
+    0b1111_0000    → Integer(240)
+  Underscores inside date/timestamp literals are NOT supported.
+
+LONG (64-BIT INTEGER) — L / l suffix
+  Appending 'L' or 'l' to any integer literal emits a Long(i64) instead of
+  Integer(i32).  The suffix is valid on decimal, hex, and binary forms.
+    9_000_000_000L     → Long(9000000000)
+    0xDEAD_BEEFL       → Long(3735928559)
+    0b1111_0000_1111L  → Long(3855)
+  Plain integers that overflow i32 are auto-promoted to Long:
+    3_000_000_000      → Long(3000000000)   (no suffix needed)
+
+FLOAT vs DOUBLE
+  Literals with an 'f'/'F' suffix are stored as 32-bit float (f32).
+  Literals without a suffix and with a decimal point are 64-bit double (f64).
+    3.14f      → Float(f32)
+    3.14       → Double(f64)
+  'L' and 'f'/'F' are mutually exclusive; 'L' on a float is a lex error.
+
+BINARY LITERALS — 0b / 0B
+  Prefix 0b or 0B followed by 0/1 digits (with optional '_' separators).
+    0b1010         → Integer(10)
+    0b1111_0000    → Integer(240)
+    0b1L           → Long(1)
+
+HEX LITERALS — 0x / 0X
+  Prefix 0x or 0X followed by hex digits (with optional '_' separators).
+    0xFF           → Integer(255)
+    0xFF_FF_FF_FF  → Long(4294967295)  (overflows i32, auto-promoted)
+    0xDEAD_BEEFL   → Long(3735928559)  (explicit L suffix)
+*)
+
+Integer          ::= "-"? DecimalDigits
+Long             ::= "-"? DecimalDigits ("L" | "l")
+                   | "-"? HexLiteral    ("L" | "l")
+                   | "-"? BinaryLiteral ("L" | "l")
+
+(* auto-promoted: any Integer that overflows i32 is silently a Long *)
+
+DecimalDigits    ::= Digit (Digit | "_")* Digit
+                   | Digit
+
+Float            ::= "-"? DecimalDigits "." DecimalDigits ("f" | "F")
+                   | "-"? DecimalDigits ("f" | "F")
+Double           ::= "-"? DecimalDigits "." DecimalDigits
+                   | "-"? DecimalDigits ("." DecimalDigits)? ("e" | "E") ("+" | "-")? DecimalDigits
+
+ScientificNotation ::= Double
+
+HexLiteral       ::= "0" ("x" | "X") HexDigit (HexDigit | "_")*
+BinaryLiteral    ::= "0" ("b" | "B") BinDigit (BinDigit | "_")*
+
+Boolean          ::= "true" | "false"
+Null             ::= "null"
+
+HexColor         ::= "#" (HexDigit){3,8}
+Date             ::= DateFormat
+Timestamp        ::= TimestampFormat
+
+Value            ::= Literal | ArrayLiteral | ObjectLiteral
+
+DataType         ::= "int" | "long" | "float" | "double" | "string" | "bool"
+                   | "array" | "tuple" | "hex" | "blob" | "regex" | "object"
+                   | "timestamp" | "date" | "enum"
+
+(* ============================================================ *)
+(* IDENTIFIERS AND BASIC ELEMENTS *)
+(* ============================================================ *)
+
+(*
+IDENTIFIER RULES
+================
+
+DixScript supports two identifier forms:
+
+1. Snake-case (all sections):
+      Identifier_snake ::= Letter (Letter | Digit | "_")*
+
+2. Kebab-case (all sections EXCEPT @QUICKFUNCS):
+      Identifier_kebab ::= Letter (Letter | Digit | "_")* ("-" (Letter | "_") (Letter | Digit | "_")*)+
+
+IMPORTANT DISAMBIGUATION RULES:
+  • Hyphen is part of an identifier ONLY when:
+      – Not in @QUICKFUNCS section (where "-" is arithmetic minus)
+      – Immediately followed by [A-Za-z_] (not digit, ">", space, or another "-")
+  • "mid-log"  → one Identifier token   (DATA section)
+  • "a - b"    → Identifier ArithmeticOp Identifier (spaces disambiguate)
+  • "a-5"      → Identifier then numeric literal "-5" (digit after hyphen)
+  • "a->"      → Identifier then SwitchCase "->" (> after hyphen)
+  • "a-b" in @QUICKFUNCS → Identifier ArithmeticOp Identifier
+*)
+
+Identifier       ::= Letter (Letter | Digit | "_")*
+                   | Letter (Letter | Digit | "_" | "-")* Letter  (* kebab — non-QUICKFUNCS only *)
+
+Digit            ::= "0" | "1" | "2" | "3" | "4" | "5" | "6" | "7" | "8" | "9"
+BinDigit         ::= "0" | "1"
+HexDigit         ::= Digit | "a" | "b" | "c" | "d" | "e" | "f"
+                   | "A" | "B" | "C" | "D" | "E" | "F"
+Letter           ::= [a-zA-Z]
+Character        ::= Letter | Digit | Symbol | " " | EscapeSequence
+Symbol           ::= [+\-*/<>=!@#$%^&()\[\]{};:,.\?/\\|`~_]
+EscapeSequence   ::= "\" ("n" | "t" | "r" | "\" | '"' | "'" | "{" | "}" | "0")
+
+DateFormat       ::= Digit{4} "-" Digit{2} "-" Digit{2}
+TimestampFormat  ::= DateFormat "T" Digit{2} ":" Digit{2} ":" Digit{2}
+                     ("." Digit{3})? ("Z" | TimeZoneOffset)?
+TimeZoneOffset   ::= ("+" | "-") Digit{2} ":" Digit{2}
+
+(* ============================================================ *)
+(* KEYWORDS *)
+(* ============================================================ *)
+
+Keywords         ::= "if:" | "elif:" | "else" | "chk:" | "then" | "return"
+                    | "log:" | "miss" | "global"
+                    | "and" | "or" | "not" | "true" | "false" | "null"
+                    | "from" | "from_cloud" | "verify"
+                    | "let" | "const" | "mut"
+                    | "long"
+
+(* ============================================================ *)
+(* COMMA USAGE SUMMARY *)
+(* ============================================================ *)
+
+(*
+COMMA RULES IN DIXSCRIPT v1.1.0:
+=================================
+
+OPTIONAL COMMAS (between entries):
+- Between flat properties in DATA section
+- Between table property declarations
+- Between group array declarations
+- Between property assignments within table properties
+- Between array items within group arrays
+- Between CONFIG entries
+- Between ENUM declarations
+- Between IMPORT declarations
+- Between DLM modules
+- Between SECURITY entries
+
+REQUIRED COMMAS (within collections):
+- Function call parameters: func(a, b, c)
+- Array literals: [1, 2, 3]
+- Object literal properties: { x = 1, y = 2 }
+- Tuple elements: t:(1, 2, 3)
+- SECURITY field lists: { field1 = val, field2 = val }
+
+STATEMENT TERMINATORS:
+- Semicolons at the end of statements are OPTIONAL.
+- Both styles are accepted:
+    x = 42          // no semicolon — valid
+    x = 42;         // with semicolon — also valid
+
+RECOMMENDATION:
+- Use commas for horizontal arrangements (same line)
+- Omit commas for vertical arrangements (different lines)
+- Formatters can enforce consistent style
+*)
+
+(* ============================================================ *)
+(* NUMERIC LITERAL EXAMPLES *)
+(* ============================================================ *)
+
+(*
+EXAMPLES:
+  Integer            count = 42
+  Integer (sep)      big   = 1_000_000
+  Long               users = 9_000_000_000L
+  Long (auto)        huge  = 3_000_000_000     (* overflows i32, promoted *)
+  Float              rate  = 3.14f
+  Double             pi    = 3.14159265358979
+  Scientific         tiny  = 6.626e-34
+  Scientific (float) approx = 1.5e10f          (* 'f' suffix on scientific *)
+  Hex (int)          mask  = 0xFF
+  Hex (sep+long)     big   = 0xDEAD_BEEFL
+  Binary             flags = 0b1010_1100
+  Binary (long)      wide  = 0b1111_0000_1111_0000L
+  HexColor           bg    = #FF5733
+*)
