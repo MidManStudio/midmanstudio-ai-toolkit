@@ -169,6 +169,10 @@ the next person (or you, in six months) reading the call site.
 
 ### Control flow inside QuickFuncs
 
+Every branch keyword (`if`, `elif`, `chk`) takes a colon before its
+condition/expression — confirmed directly against the parser, not just the
+README. `chk` is short for **check**.
+
 ```dixscript
 // if / elif / else  (note the colon)
 if: x > 10 {
@@ -190,6 +194,46 @@ chk: rarity {
 // ternary
 multiplier = difficulty == Difficulty.HARD ? 2.0 : 1.0
 ```
+
+#### Single-line forms
+
+`{ }` blocks are the multi-line form. Several places also accept a
+single-statement form — verified against the actual parser
+(`quickfuncs_section_parser.rs`), not just the examples above, because the
+three constructs are **not symmetric** with each other:
+
+| Construct | Single-line form | Block form | Notes |
+|---|---|---|---|
+| `if:` | `if: cond then stmt` | `if: cond { ... }` | `then` is the connector keyword |
+| `elif:` | — not supported | `elif: cond { ... }` | **Always requires `{ }`.** There is no `elif: cond then stmt` — the parser hard-requires the opening brace here even when the preceding `if` used `then`. |
+| `else` | `else stmt` | `else { ... }` | No connector keyword at all — straight from `else` to the statement. Do **not** write `else then stmt`; that's a parse error. |
+| `chk:` header | — not supported | `chk: expr { ... }` | The switch header itself always needs `{ }` around its cases, regardless of how simple the cases are. |
+| `-> case` (inside `chk`) | `-> case then stmt` **or** `-> case => stmt` | `-> case { ... }` | Three valid forms for a single case body. `miss` (the default case) accepts all three the same way: `-> miss then stmt`. |
+
+```dixscript
+// single-line if, block elif, single-line else — all legal in one chain
+if: x > 10 then return "big"
+elif: x > 5 { log: "checking medium range"; return "medium" }
+else return "small"
+
+// chk header always needs { }, but each case can mix forms freely
+chk: rarity {
+  -> CamoRarity.Rare      then return 100
+  -> CamoRarity.Epic      => return 250
+  -> CamoRarity.Legendary { bonus = 50; return 500 + bonus }
+  -> miss                 then return 10
+}
+```
+
+Because the single-statement slot after `then`/`=>`/`else` is a full
+statement (not just an expression), it can itself be another `if:`/`chk:` —
+nesting single-line forms is legal, though for readability it's rarely
+worth going past one level.
+
+`return` needs no colon and no `then` — `return expr` (or bare `return`,
+which yields `null`) is always valid on its own line or after `then`/`=>`/
+`else`. Same for `log:`, which does need its own colon (`log: "message"`)
+regardless of what construct it's nested inside.
 
 ### Variable declarations
 
@@ -231,7 +275,7 @@ log: "Processing item: " + name
 | Arithmetic | `+` `-` `*` `/` `%` `^` (power) |
 | Comparison | `==` `!=` `>` `<` `>=` `<=` |
 | Logical | `&&` / `and`   `\|\|` / `or`   `!` / `not` |
-| Ternary | `condition ? then : else` |
+| Ternary | `condition ? valueIfTrue : valueIfFalse` |
 | String concat | `+` |
 
 ## Nested Function Calls & String Building
@@ -391,35 +435,174 @@ getting-started::
 
 ## Built-in Instance & Static Methods
 
-Useful for transforming strings, arrays, and numbers inside QuickFunc bodies
-without hand-rolling logic.
+Every method below is confirmed straight from the compiler's builtin
+registries (`Builtins/Instance/*.rs`, `Builtins/Static/*.rs`,
+`Builtins/Resolver/instance_method_registry.rs`), not from README claims
+about them — this is the previous version of this skill's biggest gap, so
+treat this section as the authoritative source going forward, above any
+other doc including the crate's own README if the two ever drift.
 
-**String instance:** `.charAt()` `.contains()` `.endsWith()` `.indexOf()`
-`.isBlank()` `.isEmpty()` `.lastIndexOf()` `.length()` `.padLeft()`
-`.padRight()` `.replace()` `.split()` `.startsWith()` `.substring()`
-`.toLower()` `.toUpper()` `.trim()`
+Argument counts below **exclude** the receiver — `.padLeft(width, char)`
+means two arguments after the dot, matching how you'd actually write the
+call. For static objects (`Math.x()`, `Random.x()`, ...) the count is just
+the literal argument list, since there's no receiver at all.
 
-**Array instance:** `.average()` `.concat()` `.contains()` `.count()`
-`.distinct()` `.filter()` `.first()` `.flatten()` `.get()` `.indexOf()`
-`.isEmpty()` `.join()` `.last()` `.lastIndexOf()` `.length()` `.max()`
-`.min()` `.pop()` `.push()` `.reverse()` `.set()` `.shift()` `.slice()`
-`.sort()` `.sum()` `.unshift()`
+### Instance methods, by type
 
-**Number instance:** `.abs()` `.ceil()` `.floor()` `.isEven()` `.isFinite()`
-`.isInfinity()` `.isNaN()` `.isNegative()` `.isOdd()` `.isPositive()`
-`.round()` `.sign()` `.toDouble()` `.toFloat()` `.toInt()` `.toString()`
+Instance methods are called as `value.method(args)`. A type only gets the
+methods listed under it, plus every method in **Universal** (below) that it
+doesn't already override with its own version.
 
-**Object instance:** `.add()` `.containsValue()` `.count()` `.entries()`
-`.get()` `.has()` `.keys()` `.length()` `.merge()` `.remove()` `.set()`
-`.toArray()` `.values()`
+**String** — `.toUpper()` `.toLower()` `.trim()` `.length()`
+`.substring(start, length)` `.contains(sub)` `.startsWith(prefix)`
+`.endsWith(suffix)` `.replace(old, new)` `.split(separator)`
+`.indexOf(sub)` `.lastIndexOf(sub)` `.charAt(index)` `.isEmpty()`
+`.isBlank()` `.padLeft(width, char)` `.padRight(width, char)`
 
-**Math static:** `Math.abs()` `Math.ceil()` `Math.clamp()` `Math.cos()`
-`Math.degrees()` `Math.e()` `Math.exp()` `Math.floor()` `Math.log()`
-`Math.max()` `Math.min()` `Math.pi()` `Math.pow()` `Math.radians()`
-`Math.remainder()` `Math.round()` `Math.sign()` `Math.sin()` `Math.sqrt()`
-`Math.tan()` `Math.truncate()`
+**Array** — `.length()` `.contains(el)` `.indexOf(el)` `.lastIndexOf(el)`
+`.get(i)` `.set(i, val)` `.push(el)` `.pop()` `.shift()` `.unshift(el)`
+`.slice(start, end)` `.join(sep)` `.reverse()` `.sort()` `.concat(other)`
+`.filter(val)` (keeps elements **not equal** to `val` — it's an exclusion
+filter, not a predicate) `.flatten()` (one level deep) `.isEmpty()`
+`.first()` `.last()` `.distinct()` `.count(el)` `.max()` `.min()` `.sum()`
+`.average()`
+
+**Tuple** — `.length()` `.get(i)` `.first()` `.second()` `.third()`
+`.fourth()` `.fifth()` `.sixth()` (positional accessors, indices 0–5 —
+tuples top out at 6 elements) `.contains(val)` `.containsAny(val)` (alias
+for `contains`) `.toArray()` `.reverse()` `.swap(i1, i2)`
+
+**Object** — `.add(key, val)` `.set(key, val)` `.remove(key)`
+`.merge(other)` `.get(key)` `.has(key)` `.count()` `.keys()` `.values()`
+`.entries()` (array of `[key, value]` tuples) `.toArray()` (alias for
+`entries()`) `.containsValue(val)`. There is no `.length()` on Object — use
+`.count()`.
+
+**Blob** — `.size()` `.mimeType()` (sniffs magic bytes) `.toHex()`
+`.isValid()` (valid base64) `.slice(start, end)` `.toBytes()` (array of
+ints 0–255)
+
+**Regex** — `.test(str)` `.match(str)` (first match + capture groups)
+`.matchAll(str)` `.replace(str, replacement)` `.split(str)` `.isValid()`
+
+**Timestamp** — `.addDays(n)` `.addHours(n)` `.addMinutes(n)`
+`.addSeconds(n)` `.addMilliseconds(n)` `.format(fmt)` (strftime-style)
+`.year()` `.month()` `.day()` `.hour()` `.minute()` `.second()`
+`.millisecond()` `.dayOfWeek()` (0=Sunday) `.dayOfYear()` `.toUnixTime()`
+`.toUnixMillis()`
+
+**Date** — smaller set than Timestamp (no time-of-day component to offset
+or read): `.addDays(n)` `.format(fmt)` `.year()` `.month()` `.day()`
+`.dayOfWeek()` `.dayOfYear()` `.toUnixTime()`
+
+**Number (Int/Long/Float/Double)** — these four types do **not** share one
+identical method set; each only has what makes sense for it:
+
+| Method | Int | Long | Float | Double |
+|---|:-:|:-:|:-:|:-:|
+| `.abs()` `.sign()` `.toString()` `.toDouble()` | ✓ | ✓ | ✓ | ✓ |
+| `.isEven()` `.isOdd()` `.isPositive()` `.isNegative()` | ✓ | ✓ | | |
+| `.toFloat()` | ✓ | ✓ | | ✓ |
+| `.toLong()` | ✓ | | ✓ | ✓ |
+| `.toInt()` | | ✓ | ✓ | ✓ |
+| `.fitsInInt()` | | ✓ | | |
+| `.round(decimals?)` `.floor()` `.ceil()` | | | ✓ | ✓ |
+| `.isNaN()` `.isInfinity()` `.isFinite()` | | | ✓ | ✓ |
+
+Integer parity/sign checks (`isEven`, `isPositive`, ...) exist only on
+Int/Long — there's no `.isEven()` on a Float. Rounding/NaN checks
+(`round`, `floor`, `ceil`, `isNaN`, `isInfinity`, `isFinite`) exist only on
+Float/Double. `.round()` takes an **optional** decimal-places argument
+(default `0`, i.e. round to nearest integer) — `x.round()` and
+`x.round(2)` are both valid. `Double.toDouble()` exists too, as a harmless
+identity conversion, for API consistency with the other three types.
+
+**Universal** (every type, unless the type already defines its own version
+above — Array's own `.toBytes()`/`.isEmpty()` etc. win over these, for
+instance) — `.toString()` `.type()` `.isNull()` `.isNotNull()`
+`.equals(other)` `.notEquals(other)` `.hashCode()` `.clone()` (deep copy)
+`.toBytes()` `.size()` (rough memory-size estimate, not element count)
+`.isEmpty()` `.isNotEmpty()` `.defaultIfNull(fallback)`
+`.defaultIfEmpty(fallback)` `.debug()` `.json()` `.isNumeric()`
 
 Example chaining: `first.trim().toUpper() + " " + last.trim().toUpper()`
+
+### Static objects
+
+Called as `TypeName.method(args)` — no receiver, so every argument shown is
+a real positional argument.
+
+**Math** — `.max(a, b)` `.min(a, b)` `.abs(x)` `.sqrt(x)` `.pow(base, exp)`
+`.floor(x)` `.ceil(x)` `.round(x)` `.sin(x)` `.cos(x)` `.tan(x)`
+`.log(x)` (natural log) `.log10(x)` `.exp(x)` `.sign(x)`
+`.clamp(val, min, max)` `.pi()` `.e()` `.radians(deg)` `.degrees(rad)`
+`.truncate(x)` `.remainder(a, b)`
+
+**Array** — `.range(start, end)` (inclusive) `.fill(value, count)`
+`.empty()` `.of(...values)` (variadic) `.repeat(array, times)`
+`.concat(array1, array2, ...)` (variadic, 2+ arrays)
+`.fromString(text, separator)` `.reverse(array)` `.sort(array)`
+`.unique(array)` `.slice(array, start, end)` `.filter(array, val)`
+`.contains(array, val)` `.indexOf(array, val)` `.lastIndexOf(array, val)`
+`.flatten(array)` `.sum(array)` `.average(array)` `.min(array)`
+`.max(array)`
+
+Note the overlap with instance methods: `array.sort()` (instance) and
+`Array.sort(array)` (static) do the same thing — pick whichever reads
+better at the call site, they're not different behaviors.
+
+**DateTime** — `.now()` `.today()` `.utcNow()` `.parse(str)`
+`.parseExact(str, fmt)` `.create(year, month, day)`
+`.createTime(year, month, day, hour, minute, second)`
+`.fromUnixTime(seconds)` (accepts int or long — use long for dates past
+2038) `.toUnixTime(ts)` `.toUnixMillis(ts)` `.isLeapYear(year)`
+`.daysInMonth(month, year)` `.compare(a, b)` (-1/0/1)
+`.addDays/addHours/addMinutes/addSeconds/addYears/addMonths(ts, n)`
+`.format(ts, fmt)` `.dayOfWeek(ts)` `.dayOfYear(ts)`
+`.year/month/day/hour/minute/second/millisecond(ts)`
+`.subtract(a, b)` (difference in days, fractional)
+`.subtractMillis(a, b)` (difference in milliseconds)
+
+**Dix** — logging and formatting, all variadic-friendly:
+`.Log(msg)` / `.LogInfo(msg)` (identical) `.LogWarning(msg)`
+`.LogError(msg)` `.LogDebug(msg)` (only shown in debug mode)
+`.LogVerbose(msg)` (only shown in verbose debug mode)
+`.Assert(condition, msg)` (throws if false) `.Trace(msg, context?)`
+`.Print(msg)` `.PrintLine(msg)` `.Format(fmt, ...args)` (variadic —
+`{0}`-style positional placeholders) `.Join(separator, ...values)`
+(variadic)
+
+**Enum** — `.getValues(enumName)` `.getName(enumName, value)`
+`.getValue(enumName, name)` `.hasValue(enumName, name)` `.count(enumName)`
+`.exists(enumName)` `.list()` (all registered enum names, no arg)
+`.min(enumName)` `.max(enumName)` `.random(enumName)`
+`.contains(enumName, value)` `.toArray(enumName)` (name-value pair objects)
+
+**Guid** — `.new()` `.parse(str)` (throws on invalid) `.tryParse(str)`
+(returns null on invalid instead) `.validate(str)` `.empty()`
+`.format(guid, style)` (styles: `N`/`D`/`B`/`P`/`X`) `.toBytes(guid)`
+(16 bytes) `.fromBytes(bytes)` (must be exactly 16)
+
+**IpAddress** — `.parse(str)` `.tryParse(str)` `.validate(str)` `.isV4(ip)`
+`.isV6(ip)` `.isPrivate(ip)` `.isLoopback(ip)` `.isPublic(ip)`
+`.toBytes(ip)` (4 bytes for v4, 16 for v6) `.fromBytes(bytes)`
+`.inRange(ip, low, high)` `.localhost()` `.anyAddress()` (0.0.0.0)
+`.broadcast()` (255.255.255.255) — the last three take no arguments, they
+just return the named constant address.
+
+**Random** — `.range(min, max)` (int, inclusive) `.longRange(min, max)`
+`.nextFloat()` `.nextDouble()` (both 0.0–1.0, no args) `.nextBool()`
+`.floatRange(min, max)` `.doubleRange(min, max)` `.choice(array)`
+(one random element) `.choices(array, count)` (with replacement)
+`.sample(array, count)` (without replacement — errors if `count` exceeds
+the array length) `.shuffle(array)` `.bytes(count)` `.randomString(length,
+charset)` `.alphanumeric(length)` `.weighted(array, weights)`
+
+### Types with no dedicated methods
+
+`Bool`, `Hex`, `Enum` (instance values, as opposed to the `Enum` static
+object above), and `Null` have no type-specific instance methods at all —
+they only get whatever's in **Universal**.
 
 ## @DATA
 
@@ -651,6 +834,12 @@ full reference; pull individual functions from it as needed.
   `elif:`, `chk:`, `log:`.
 - **`param = param` instead of `param = _param`.** Prefix QuickFunc
   parameters with `_` so return-object construction reads unambiguously.
+- **Assuming `then`/`elif`/`else` are symmetric.** They aren't:
+  `if: cond then stmt` works, but `elif: cond then stmt` is a parse error —
+  `elif` always requires `{ }`. And `else` never takes `then` at all —
+  it's just `else stmt` or `else { }`. Writing `else then stmt` is also a
+  parse error. See the single-line-forms table above before assuming any
+  of these three behave the same way.
 - **Missing the signature comment.** Every `.mdix` file starts with
   `// Brought to u by MidManStudio`.
 
